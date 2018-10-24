@@ -1,7 +1,4 @@
 %{
-#ifndef YYSTYPE
-#define YYSTYPE long int
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include "tabela.h"
@@ -13,12 +10,16 @@ pilha_contexto *pilha;
 
 %}
 
-%union {
-	int dval;
+%union
+{
+	long dval;
 	float fval;
 }
-%token TYPE INT FLOAT PRINT ID NUMBER
-%type<dval> TYPE ID NUMBER expr
+%token PRINT
+%token <dval> TYPE ID NUMBER INT FLOAT
+%token <fval> NUMBER_FLOAT
+%type <dval> expr_int
+%type <fval> expr_float
 %left '+' '-'
 %%
 
@@ -32,7 +33,6 @@ program:
 bloco: 
 	'{' 			{ tabela *contexto = criar_contexto(topo_pilha(pilha));
 				  pilha = empilhar_contexto(pilha, contexto);
-
 				 }
 	decls stmts '}'		{ imprimir_contexto(topo_pilha(pilha));
 				  desempilhar_contexto(&pilha); }
@@ -44,8 +44,8 @@ decls:
 	;
 	
 decl:
-	TYPE	ID ';'		{	simbolo * s = criar_simbolo((char *) $2, $1); 
-										inserir_simbolo(topo_pilha(pilha), s); }
+	TYPE	ID ';'		{	printf("teste\n"); simbolo * s = criar_simbolo((char *) $2, $1); 
+							inserir_simbolo(topo_pilha(pilha), s); }
 
 	;
 
@@ -55,7 +55,7 @@ stmts:
 	;
 
 stmt:
-	expr ';'		{	}
+	expr_int ';'		{	}
 	| print
 	| bloco
 	| attr
@@ -65,39 +65,50 @@ stmt:
 print:
 	PRINT ID ';' {	 simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $2);
 								  if(s == NULL)
-											yyerror("Identificador não declarado");
+										printf("Identificador \"%s\" não declarado.\n", (char *) $2);
 									else
+										if(s->tipo == INT)
 											printf("[%s = %d]\n", s->lexema, s->val.dval);
+										else if(s->tipo == FLOAT)
+											printf("[%s = %f]\n", s->lexema, s->val.fval);
 								}
 	;
 
 attr: 
-									/* localiza o símbolo e atualiza seu valor, utilizando o valor da expressão */
-	ID '=' expr ';'		{ 	simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $1);
+		/* localiza o símbolo e atualiza seu valor, utilizando o valor da expressão */
+	ID '=' expr_int ';'		{ 	simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $1);
 							if(s == NULL)
-								printf("Identificador %s nao definido.\n", (char *) $1);
+								printf("Identificador \"%s\" nao definido.\n", (char *) $1);
 							else{
 								if(s->tipo == INT)
 									s->val.dval = $3;
-								else if(s->tipo == FLOAT)
+								else if(s->tipo == FLOAT){
+									printf(">>> %li\n", $3);
 									s->val.fval = $3;
+								}
 							}
 						}
 
-expr:
+expr_int:
 
-	 NUMBER			{ $$ = yylval.dval; }
+	 NUMBER			{ $$ = $1; }
 	| ID			{ simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $1);
-				  if(s == NULL)
-						yyerror("Identificador não declarado");
-				  else  {
+						if(s == NULL)
+							printf("Identificador \"%s\" não declarado.\n", (char *) $1);
+						else  {
 							$$ = s->val.dval;
-				  }
-				}
-	| expr '+' expr		{ $$ = $1 + $3; }
-	| expr '-' expr		{ $$ = $1 - $3; }
-	| '(' expr ')'		{ $$ = $2; }
+						}
+					}
+	| expr_int '+' expr_int		{ $$ = $1 + $3; }
+	| expr_int '-' expr_int		{ $$ = $1 - $3; }
+	| '(' expr_int ')'		{ $$ = $2; }
 	; 
+
+expr_float:
+	NUMBER_FLOAT	{ $$ = yylval.fval; }
+	|
+	;
+
 
 %%
 

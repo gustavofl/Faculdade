@@ -17,6 +17,19 @@ void inserir_simbolo(tabela *t, simbolo *s) {
 /* Localiza o símbolo na hierarquia das tabelas de símbolos */
 simbolo * localizar_simbolo (tabela *contexto, char *lexema){
 	simbolo *s = NULL;
+	tabela *t = contexto;
+
+	while(t != NULL && s == NULL) {
+		s = localizar_simbolo_contexto(t, lexema);
+		t = t->pai;
+	}
+	
+	return s;
+}
+
+/* Localiza o símbolo apenas no contexto atual, sem considerar a hierarquia */
+simbolo * localizar_simbolo_contexto (tabela *contexto, char *lexema) {
+	simbolo *s = NULL;
 	no_tabela *no = contexto->primeiro;
 
 	while(no != NULL && s == NULL) {
@@ -26,11 +39,6 @@ simbolo * localizar_simbolo (tabela *contexto, char *lexema){
 	}
 	
 	return s;
-}
-
-/* Localiza o símbolo apenas no contexto atual, sem considerar a hierarquia */
-simbolo * localizar_simbolo_contexto (tabela *contexto, char *lexema) {
-	return NULL;
 }
 
 /* Simula o construtor do símbolo */
@@ -77,7 +85,7 @@ void imprimir_contexto(tabela *t) {
 		if(temp->dado->tipo == INT) 
 			printf("\t INT: %s (%d)\n", temp->dado->lexema, temp->dado->val.dval);
 		else
-			printf("\t FLOAT: %s (%d)\n", temp->dado->lexema, temp->dado->val.dval);	
+			printf("\t FLOAT: %s (%f)\n", temp->dado->lexema, temp->dado->val.fval);	
 		temp = temp->proximo;
 	}
 	printf("==================================\n");

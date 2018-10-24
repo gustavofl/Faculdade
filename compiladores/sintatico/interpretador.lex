@@ -1,7 +1,4 @@
 %{
-#ifndef YYSTYPE
-#define YYSTYPE long int
-#endif
 #include <stdlib.h>
 void yyerror(char *);
 #include "y.tab.h"
