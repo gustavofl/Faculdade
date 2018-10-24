@@ -6,7 +6,6 @@
 	z = 7;
 	PRINT x;
 	{ 
-		PRINT z;
 		float x;
 		PRINT y;
 		x = 14;
