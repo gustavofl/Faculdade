@@ -1,21 +1,23 @@
 { 
 	int x; 
 	int y;
-	float z; 
-	x = 1;
-	z = 7;
+	float z;
+	x = 10; 
+	y = 1;
+	z = 8.5;
 	PRINT x;
 	{ 
-		float x;
+		int x;
+		x = y;
 		PRINT y;
-		x = 14;
 		PRINT x;
 	} 
-	y = x;
+	PRINT y;
+	y = 4.6;
 	PRINT y;
 	{
 		int t;
-		{float _kkk; float j; z=2;}
+		{float _kkk; float j;}
 	}
 }
 

@@ -6,6 +6,7 @@ void yyerror(char *);
 
 letra	[a-z|A-Z|_] 
 numero	[0-9]
+float	{numero}+\.{numero}+
 identificador	{letra}({letra}|{numero})*
 
 %%
@@ -14,6 +15,10 @@ identificador	{letra}({letra}|{numero})*
 {numero}+	{ yylval.dval = atoi(yytext);
 		  return NUMBER;
 		}
+
+{float}		{ yylval.fval = atof(yytext); 
+				return NUMBER_FLOAT;
+			}
 
 int		{	yylval.dval = INT;
 			return TYPE;
