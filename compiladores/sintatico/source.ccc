@@ -3,13 +3,14 @@
 	int y;
 	float z;
 	x = 10; 
-	y = 1;
-	z = 8.5;
+	y = 2;
+	z = 9.5;
 	PRINT x;
+	PRINT y;
+	PRINT z;
 	{ 
 		int x;
-		PRINT y;
-		PRINT x;
+		x = 1.6 + 1.7;
 	} 
 	PRINT y;
 	y = 4.6;

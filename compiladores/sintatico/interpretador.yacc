@@ -17,9 +17,8 @@ pilha_contexto *pilha;
 }
 %token PRINT
 %token <dval> TYPE ID NUMBER INT FLOAT
-%token <dval> NUMBER_FLOAT
-%type <dval> expr_int
-%type <fval> expr_float
+%token <fval> NUMBER_FLOAT
+%type <fval> expr
 %left '+' '-'
 %%
 
@@ -55,7 +54,7 @@ stmts:
 	;
 
 stmt:
-	expr_int ';'		{	}
+	expr ';'			{	}
 	| print
 	| bloco
 	| attr
@@ -76,7 +75,7 @@ print:
 
 attr: 
 		/* localiza o símbolo e atualiza seu valor, utilizando o valor da expressão */
-	ID '=' expr_int ';'	{ 	
+	ID '=' expr ';'	{
 							simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $1);
 							if(s == NULL)
 								printf("Identificador \"%s\" nao definido.\n", (char *) $1);
@@ -84,59 +83,29 @@ attr:
 								if(s->tipo == FLOAT)
 									s->val.fval = $3;
 								else if(s->tipo == INT){
-									s->val.dval = $3;
-								}
-							}
-						}
-	| ID '=' expr_float ';'	{ 	
-							simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $1);
-							if(s == NULL)
-								printf("Identificador \"%s\" nao definido.\n", (char *) $1);
-							else{
-								if(s->tipo == FLOAT)
-									s->val.fval = $3;
-								else if(s->tipo == INT){
-									printf("Tipos de dados diferentes: %s(INT) e %f\n", (char *) $1, $3);
+									s->val.dval = (int) $3;
 								}
 							}
 						}
 	;
 
-expr_id:
-	ID { 
+expr:
+	NUMBER_FLOAT					{ $$ = $1; }
+	| NUMBER						{ $$ = (float) $1; }
+	| ID {
 			simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $1);
 			if(s == NULL)
 				printf("Identificador \"%s\" nao definido.\n", (char *) $1);
 			else{
-				if(s->tipo == FLOAT){
-					$<fval>$ = s->val.fval;
-					return NUMBER_FLOAT;
-				}
-				else if(s->tipo == INT){
-					$<dval>$ = s->val.dval;
-					return NUMBER;
-				}
+				if(s->tipo == FLOAT)
+					$$ = s->val.fval;
+				else if(s->tipo == INT)
+					$$ = (float) s->val.dval;
 			}
 		}
-	;
-
-expr_int:
-	NUMBER						{ $$ = $1; }
-	| expr_id					{ $$ = $<dval>1; }
-	| expr_int '+' expr_int		{ $$ = $1 + $3; }
-	| expr_int '-' expr_int		{ $$ = $1 - $3; }
-	| '(' expr_int ')'			{ $$ = $2; }
-	; 
-
-expr_float:
-	NUMBER_FLOAT					{ $$ = $1; }
-	| expr_float '+' expr_float		{ $$ = $1 + $3; }
-	| expr_float '+' expr_int		{ $$ = $1 + $3; }
-	| expr_int '+' expr_float		{ $$ = $1 + $3; }
-	| expr_float '-' expr_float		{ $$ = $1 - $3; }
-	| expr_float '-' expr_int		{ $$ = $1 - $3; }
-	| expr_int '-' expr_float		{ $$ = $1 - $3; }
-	| '(' expr_float ')'			{ $$ = $2; }
+	| expr '+' expr					{ $$ = $1 + $3; }
+	| expr '-' expr					{ $$ = $1 - $3; }
+	| '(' expr ')'					{ $$ = $2; }
 	;
 
 
