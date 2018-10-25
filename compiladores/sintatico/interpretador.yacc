@@ -18,11 +18,9 @@ pilha_contexto *pilha;
 %token PRINT
 %token <dval> TYPE ID NUMBER INT FLOAT
 %token <dval> NUMBER_FLOAT
-%type <dval> expr_int num_int
-%type <fval> expr_float num_float
+%type <dval> expr_int
+%type <fval> expr_float
 %left '+' '-'
-
-%nonassoc reduce
 %%
 
 
@@ -102,40 +100,36 @@ attr:
 								}
 							}
 						}
+	;
 
-id_ref:
-	ID	{ 
+expr_id:
+	ID { 
 			simbolo * s = localizar_simbolo(topo_pilha(pilha), (char *) $1);
 			if(s == NULL)
 				printf("Identificador \"%s\" nao definido.\n", (char *) $1);
 			else{
 				if(s->tipo == FLOAT){
-					$<dval>$ = NUMBER_FLOAT;
-					yylval.fval = s->val.fval;
+					$<fval>$ = s->val.fval;
+					return NUMBER_FLOAT;
 				}
 				else if(s->tipo == INT){
-					$<dval>$ = NUMBER;
-					yylval.dval = s->val.dval;
+					$<dval>$ = s->val.dval;
+					return NUMBER;
 				}
 			}
 		}
-
-num_int:
-	NUMBER 						{ $$ = $<dval>1; }
-
-num_float:
-	NUMBER_FLOAT				{ $$ = $<fval>1; }
+	;
 
 expr_int:
-	num_int						{ $$ = $1; }
-	| id_ref	%prec reduce	{ $$ = $<dval>1; }
+	NUMBER						{ $$ = $1; }
+	| expr_id					{ $$ = $<dval>1; }
 	| expr_int '+' expr_int		{ $$ = $1 + $3; }
 	| expr_int '-' expr_int		{ $$ = $1 - $3; }
 	| '(' expr_int ')'			{ $$ = $2; }
 	; 
 
 expr_float:
-	num_float						{ $$ = $1; }
+	NUMBER_FLOAT					{ $$ = $1; }
 	| expr_float '+' expr_float		{ $$ = $1 + $3; }
 	| expr_float '+' expr_int		{ $$ = $1 + $3; }
 	| expr_int '+' expr_float		{ $$ = $1 + $3; }

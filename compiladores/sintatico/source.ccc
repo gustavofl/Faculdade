@@ -8,7 +8,6 @@
 	PRINT x;
 	{ 
 		int x;
-		x = y;
 		PRINT y;
 		PRINT x;
 	} 
