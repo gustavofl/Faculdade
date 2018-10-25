@@ -1,14 +1,5 @@
 import cv2 as cv
 
-def obter_imagens():
-	dados = []
-
-	for indice_imagem in range(3):
-		nome_arquivo = "imagens/img"+str(indice_imagem+1)+".pgm"
-		dados.append(cv.imread(nome_arquivo, 0))
-
-	return dados
-
 def requantizar(img, novo_q):
 	nova_img = img.copy()
 
@@ -25,14 +16,14 @@ def requantizar(img, novo_q):
 			nova_img[i][j] = peso_pixel*fator
 	return nova_img
 
+def requantizar_e_salvar(img_origem, local_destino, k):
+	img = cv.imread(img_origem, 0)
+	req = requantizar(img, 2*k)
+	cv.imwrite(local_destino, req)
+
 def main():
-	imagens = obter_imagens()
-
-	for i,img in enumerate(imagens):
-		cv.imshow("Original", img)
-
+	for img in range(1,4):
 		for k in range(1,4):
-			req = requantizar(img, 2*k)
-			cv.imwrite("imagens/img"+str(i+1)+"."+str(k)+".pgm", req)
+			requantizar_e_salvar("imagens/img"+str(img)+".pgm", "imagens/requantizadas/img"+str(img)+"."+str(k)+".pgm", k)
 
 main()
