@@ -36,7 +36,7 @@ def get_transformacao(a, b, c, d, L=256):
 			transformacao.append(int(get_y(l2,i)))
 		else:
 			transformacao.append(int(get_y(l3,i)))
-		print(transformacao[-1])
+		# print(transformacao[-1])
 
 	return transformacao
 
@@ -70,7 +70,7 @@ def get_valores():
 	return a,b,c,d
 
 def main():
-	img = cv.imread("imagens/img1.pgm", 0)
+	img = cv.imread("imagens/img2.pgm", 0)
 
 	hist = cv.calcHist([img],[0],None,[256],[0,256])
 	# plt.plot(hist)
@@ -97,6 +97,6 @@ def main():
 	cv.waitKey(0)
 	cv.destroyAllWindows()
 
-	# cv.imwrite("imagens/img-transformada.pgm", nova_img)
+	cv.imwrite("imagens/img2-q4t2.pgm", nova_img)
 
 main()
