@@ -9,6 +9,8 @@ q5: l1q5.py
 
 l2q1: l2q1.py
 	python3 l2q1.py
+l2q2: l2q2.py
+	python3 l2q2.py
 
 clean:
 	rm imagens/requantizadas/*
