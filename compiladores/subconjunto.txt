@@ -1,0 +1,47 @@
+Tipos de dados: inteiro e real (talvez string: cadeia)
+
+Arrays:
+	tipo_vetor nome_variavel[]
+
+Operadores aritméticos/lógicos: + - * / % ou e nao < <= > >= == !=
+
+Precedencia: * / % tem precedencia sobre + -
+
+Comando condicional:
+	se (condicao)
+	{
+		comandos
+	}
+	[ senao
+	{
+		comandos
+	} ]
+
+Comando de repetição:
+	enquando ( condicao )
+	{
+		comandos
+	}
+
+Definicao de função:
+	funcao [tipo_retorno] nome_funcao ([tipo parametro [, tipo parametro … ] ])
+	{	
+		comandos
+	}
+
+Chamada de função:
+	nome_funcao([parametro [, parametro … ] ])
+
+Passagem de parâmetro: por valor ?
+
+Aninhamento de blocos
+
+contexto de variáveis (global, local e blocos)
+
+Comando para imprimir:
+	escreva ( conteudo [, conteudo … ] )
+
+Comando para ler:
+	leia ( variavel )
+
+Verificação de tipo de variáveis e tipo de expressão (semântico)
