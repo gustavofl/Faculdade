@@ -1,12 +1,8 @@
-import math, time, threading
+import math, time
+import random
 from random import randint
-from multiprocessing import Process, Array
-import multiprocessing
 
-def distancia_euclidiana(p, q, tabela_distancias):
-	if(tabela_distancias[p[2]][q[2]] != -1):
-		return tabela_distancias[p[2]][q[2]]
-
+def distancia_euclidiana(p, q):
 	distancia = 0
 	p_carac = p[0]
 	q_carac = q[0]
@@ -15,10 +11,35 @@ def distancia_euclidiana(p, q, tabela_distancias):
 		distancia += (p_carac[i] - q_carac[i])**2
 	distancia = math.sqrt(distancia)
 
-	tabela_distancias[p[2]][q[2]] = distancia
-	tabela_distancias[q[2]][p[2]] = distancia
+	return distancia
+
+def distancia_hamming(p, q):
+	distancia = 0
+	p_carac = p[0]
+	q_carac = q[0]
+
+	for i in range(len(p_carac)):
+		if(p_carac[i] != q_carac[i]):
+			distancia += 1
 
 	return distancia
+
+def media_lista(lista):
+	tam = len(lista)
+	soma = 0
+	for i in lista: soma += i
+
+	return float(soma)/float(tam)
+
+def desvio_padrao(lista):
+	tam = len(lista)
+	media = media_lista(lista)
+	soma = 0
+	for i in lista: soma += (i - media)**2
+
+	desvio = math.sqrt(float(soma)/float(tam))
+
+	return desvio
 
 def ordenar_maior_face(lista):
 	if(len(lista) >= 2):
@@ -52,57 +73,16 @@ def moda_faces(lista, com_peso):
 
 	return faces_moda
 
-def diff_lista(l1, l2):
-	resultado = []
+def separar_fold_cross_validation(dados, r):
+	particoes = []
+	tam = len(dados)
 
-	assert len(l1) == len(l2)
+	tam_particao = int(tam/r)
+	for i in range(r-1):
+		particoes.append(dados[i*tam_particao:(i+1)*tam_particao])
+	particoes.append(dados[(r-1)*tam_particao:])
 
-	for i in range(len(l1)):
-		resultado.append(l1[i] - l2[i])
-
-	return resultado
-
-def media_lista(lista):
-	tam = len(lista)
-	soma = 0
-	for i in lista: soma += i
-
-	return float(soma)/float(tam)
-
-def desvio_padrao(lista):
-	tam = len(lista)
-	media = media_lista(lista)
-	soma = 0
-	for i in lista: soma += (i - media)**2
-
-	desvio = math.sqrt(float(soma)/float(tam))
-
-	return desvio
-
-def estrificar_aleatorio(dados):
-	classes = []
-	
-	#DEBUG
-	for i in range(40):
-	#for i in range(7):
-		classe_i = []
-
-		#DEBUG
-		for j in range(10):
-		#for j in range(6):
-			classe_i.append(dados[i*10+j])
-
-		classes.append(classe_i)
-
-	treino = []
-	teste = []
-	for classe in classes:
-		for i in range(int(len(classe)/2)):
-			indice = randint(0,len(classe)-1)
-			treino.append(classe.pop(indice))
-		teste.extend(classe)
-
-	return treino, teste
+	return particoes
 
 def print_lista(lista):
 	print('[')
@@ -110,35 +90,7 @@ def print_lista(lista):
 		print('\t'+str(i))
 	print(']')
 
-def thread_classificador_knn(treino, teste, k, tabela_distancias, indice_thread, lista_resultado, com_peso):
-	treino_original = treino
-	qnt_sucesso = 0
-
-	for i,p in enumerate(teste):
-		
-		lista_proximos = []
-		treino = treino_original
-
-		for j,q in enumerate(treino):
-			distancia = distancia_euclidiana(p,q, tabela_distancias)
-
-			if(len(lista_proximos) < k):
-				q.append(distancia)
-				lista_proximos.append(q)
-			elif(distancia < lista_proximos[0][-1]):
-				lista_proximos.pop()
-				q.append(distancia)
-				lista_proximos.append(q)
-				ordenar_maior_face(lista_proximos)
-
-		resultado = lista_proximos[0][1]
-		resultado = moda_faces(lista_proximos, com_peso)
-		if(resultado == p[1]):
-			qnt_sucesso += 1
-
-	lista_resultado[indice_thread] = qnt_sucesso
-
-def classificador_knn(treino, teste, k, tabela_distancias, com_peso=False):
+def classificador_knn(treino, teste, k, funcao_distancia=distancia_euclidiana, com_peso=False):
 	treino_original = treino
 	qnt_total = 0
 	qnt_sucesso = 0
@@ -149,14 +101,16 @@ def classificador_knn(treino, teste, k, tabela_distancias, com_peso=False):
 		treino = treino_original
 
 		for j,q in enumerate(treino):
-			distancia = distancia_euclidiana(p,q, tabela_distancias)
+			distancia = funcao_distancia(p,q)
 
 			if(len(lista_proximos) < k):
-				q.append(distancia)
+				# q.append(distancia)
+				q[-1] = distancia
 				lista_proximos.append(q)
 			elif(distancia < lista_proximos[0][-1]):
 				lista_proximos.pop()
-				q.append(distancia)
+				# q.append(distancia)
+				q[-1] = distancia
 				lista_proximos.append(q)
 				ordenar_maior_face(lista_proximos)
 
@@ -186,91 +140,147 @@ def ler_arquivo_csv(arquivo):
 		dados.append(''.join(linha[1:-1]))
 		dados.extend(linha[-1][1:].split(","))
 
-		passageiros_dados.append(dados)
+		sobrevivente = dados.pop(1)
+
+		passageiros_dados.append([dados,sobrevivente])
 
 	return passageiros_dados
 
 def tratar_dados_titanic(arquivo):
-	tickets = []
 	resultado = []
 
 	# Transformacao de dados categoricos para numericos
-	for dados in arquivo:
-		passageiro = [[]]
+	for i,pessoa in enumerate(arquivo):
+		dados_categ = pessoa[0]
 
-		for i in range(len(dados)):
-			if(dados[i] == ''):
-				dados[i] = '0'
+		dados_num = []
 
-		is_teste = int(len(dados) == 11)
+		# ID
+		dados_num.append(int(dados_categ[0])) 
 
-		passageiro.append(dados[3-is_teste]) # NOME
-		passageiro.append(int(dados[1])) # Survived
+		# Class
+		classe = dados_categ[1]
+		if(classe != ''):
+			dados_num.append(int(classe))
+		else:
+			dados_num.append('#') # calcular media
 
-		passageiro[0].append(int(dados[0])) # ID
-		passageiro[0].append(int(dados[2-is_teste])) # Class
-		passageiro[0].append(int(dados[4-is_teste] == "male")) # Sex
-		passageiro[0].append(float(dados[5-is_teste])) # Age
-		passageiro[0].append(int(dados[6-is_teste])) # sibsp
-		passageiro[0].append(int(dados[7-is_teste])) # parch
+		# NOME (Nao faz sentido usar o nome na classificacao)
+
+		# Sex
+		sex = dados_categ[3]
+		if(sex == 'male'):
+			dados_num.append(1)
+		elif(sex == 'female'):
+			dados_num.append(-1)
+		else:
+			dados_num.append('#') # calcular media
+
+		# Age
+		age = dados_categ[4]
+		if(age != ''):
+			dados_num.append(float(age))
+		else:
+			dados_num.append('#') # calcular media
+
+		# sibsp
+		sibsp = dados_categ[5]
+		if(sibsp != ''):
+			dados_num.append(int(sibsp))
+		else:
+			dados_num.append('#') # calcular media
+
+		# parch
+		parch = dados_categ[6]
+		if(parch != ''):
+			dados_num.append(int(parch))
+		else:
+			dados_num.append('#') # calcular media
 
 		# Ticket
-		ticket = dados[8-is_teste].split(" ")
-		try: 
-			int(ticket[0])
-			ticket[0] = "numero inteiro"
-		except: 
-			pass
-		if(not ticket[0] in tickets):
-			tickets.append(ticket[0])			
-		passageiro[0].append(tickets.index(ticket[0]))
-
-		passageiro[0].append(float(dados[9-is_teste])) # Fare (tarifa)
-		
-		# Cabin number
-		cabin = dados[10-is_teste]
-		if(cabin == "0"):
-			passageiro[0].append(0)
+		ticket = dados_categ[7]
+		if(ticket == 'LINE'):
+			dados_num.append(0)
+		elif(ticket != ''):
+			ticket = ticket.split()
+			try:
+				dados_num.append(int(ticket[-1]))
+			except:
+				print(ticket)
 		else:
+			dados_num.append('#') # calcular media
+
+		# Fare (tarifa)
+		fare = dados_categ[8]
+		if(fare != ''):
+			dados_num.append(float(fare))
+		else:
+			dados_num.append('#') # calcular media
+
+		# Cabin number
+		cabin = dados_categ[9]
+		if(cabin == ""):
+			dados_num.append('#')
+		else:
+			# as vezes tem mais de uma cabine por pessoa
 			cabin = cabin.split()
 
+			# se tiver mais de uma, pegar a media
 			media = 0
 			for c in cabin:
+				# obtem o numero da letra no alfabeto e multiplica por 200 (parece ter 200 cabines por letra)
 				media += (ord(c[0])-65)*200
+
+				# se possuir um numero, somar
 				if(len(c) > 1): media += int(c[1:])
 			media /= len(cabin)
 
-			passageiro[0].append(media)
+			dados_num.append(media)
 
 		# EMBARKED
-		if(dados[11-is_teste] == "C"):
-			passageiro[0].append(1)
-		elif(dados[11-is_teste] == "Q"):
-			passageiro[0].append(2)
-		elif(dados[11-is_teste] == "S"):
-			passageiro[0].append(3)
+		embarked = dados_categ[10]
+		if(embarked == "S"):
+			dados_num.append(1)
+		elif(embarked == "C"):
+			dados_num.append(2)
+		elif(embarked == "Q"):
+			dados_num.append(3)
 		else:
-			passageiro[0].append(0)
+			dados_num.append('#')
 
-		resultado.append(passageiro)
+		resultado.append(dados_num)
 
-	# Padronizacao no valores dos atributos
-	escalas = [0 for i in range(12)]
+	# tratamente atributos faltosos
+	quantidades = [0 for i in range(len(resultado[0]))]
+	medias = [0 for i in range(len(resultado[0]))]
 	for dados in resultado:
-		for i,atributo in enumerate(dados[0]):
-			if(atributo > escalas[i]):
-				escalas[i] = atributo
+		for i,carac in enumerate(dados):
+			if(carac != '#'):
+				quantidades[i] += 1
+				medias[i] += carac
+	for i in range(len(medias)):
+		medias[i] = medias[i]/float(quantidades[i])
 
-	maior_escala = max(escalas)
 	for dados in resultado:
-		for i in range(len(dados[0])):
-			dados[0][i] *= maior_escala/float(escalas[i])
+		for i in range(len(dados)):
+			if(dados[i] == '#'):
+				dados[i] = medias[i]
 
-	# DEBUG
+	# Padronizacao nos valores das caracteristicas
+	caracteristicas = [[] for i in range(len(resultado[0]))]
+
 	for dados in resultado:
-		print(dados[1])
+		for i in range(len(dados)):
+			caracteristicas[i].append(dados[i])
 
-	return resultado, tickets
+	medias = [media_lista(lista) for lista in resultado]
+	desvios_padrao = [desvio_padrao(lista) for lista in resultado]
+
+	for dados in resultado:
+		for i in range(len(dados)):
+			dados[i] = (dados[i]-medias[i])/desvios_padrao[i]
+
+	return resultado
 
 def wilcoxon_rank(l1, l2):
 	rank = []
@@ -324,90 +334,75 @@ def wilcoxon(l1, l2):
 
 	return z
 
-def intervalo_confianca(vetor):
-	media = media_lista(vetor)
-	desvio = desvio_padrao(vetor)
-
-	inicio_intervalo = media-1.96*desvio
-	final_intervalo = media+1.96*desvio
-
-	return [inicio_intervalo, final_intervalo], media
-
-def intervalo_possui_zero(intervalo):
-	return intervalo[0] <= 0 and intervalo[1] >= 0
-
-def sobreposicao_intervalos(intervalo1, intervalo2):
-	interseccao_inicio_interv1 = intervalo1[0] >= intervalo2[0] and intervalo1[0] <= intervalo2[1]
-	interseccao_final_inter1 = intervalo1[1] >= intervalo2[0] and intervalo1[1] <= intervalo2[1]
-	interseccao_inicio_interv2 = intervalo2[0] >= intervalo1[0] and intervalo2[0] <= intervalo1[1]
-	interseccao_final_interv2 = intervalo2[1] >= intervalo1[0] and intervalo2[1] <= intervalo1[1]
-
-	return interseccao_inicio_interv1 or interseccao_final_inter1 or interseccao_inicio_interv2 or interseccao_final_interv2
-
 def main():
-	tabela_distancias = [Array("d", [-1 for j in range(400)]) for i in range(400)]
+	dados = ler_arquivo_csv("titanic/train.csv")
 
-	dados_faces = obter_dados_faces()
+	# add atributo para distancia
+	for i in range(len(dados)):
+		dados[i] = [dados[i][0],dados[i][1],0]
 
 	k=1
+	r=10
 
-	print("\n\nHOLDOUT 50/50")
-	print("\n1-NN")
-	lista_acuracia_holdout_1_NN = []
-	for i in range(100):
-		treino,teste = estrificar_aleatorio(dados_faces)
+	print("\n\n10-fold-cross-validation (1-NN)")
+	print("\nDistancia de Hamming")
+	lista_acuracia_hamming = []
+	for i in range(r):
+		random.shuffle(dados)
+		particoes = separar_fold_cross_validation(dados, r)
 
-		lista_resultado = Array("i", [0 for i in range(4)])
+		for iteracao_fold_cross in range(r):
+			treino = []
+			teste = []
 
-		# DEBUG
-		time1 = time.time()
+			for j in range(r):
+				if(j == iteracao_fold_cross):
+					teste = particoes[j]
+				else:
+					treino.extend(particoes[j])
 
-		threads = []
-		qnt_threads = 4
-		size_teste = int(len(teste)/qnt_threads)
-		for i in range(qnt_threads):
-			t=Process(target=thread_classificador_knn, args=[treino, teste[size_teste*i:size_teste*(i+1)], k, tabela_distancias, i, lista_resultado, True,])
-			t.start()
-			threads.append(t)
+			resultado_classificador = classificador_knn(treino, teste, k, funcao_distancia=distancia_hamming)
+			lista_acuracia_hamming.append(resultado_classificador)
+			print("%d-Taxa de acertos (acuracia) %d-fold-cross-validation (particao %d): %.2f %%" % ((i*r+iteracao_fold_cross+1), r, (iteracao_fold_cross+1), resultado_classificador*100.0))
 
-		for t in threads:
-			t.join()
+	dados_num = tratar_dados_titanic(dados)
 
-		time2 = time.time()
-		diff_time = float(time2 - time1)
+	# atualizar os atributos de categoricos para numericos
+	for i in range(len(dados)):
+		dados[i][0] = dados_num[i]
 
-		resultado_classificador = sum(lista_resultado)/len(teste)
+	print("\n\nDistancia Euclidiana")
+	lista_acuracia_euclidiana = []
+	for i in range(r):
+		random.shuffle(dados)
+		particoes = separar_fold_cross_validation(dados, r)
 
-		lista_acuracia_holdout_1_NN.append(resultado_classificador)
-		print("Taxa de acertos (acuracia) %d-NN com peso: %.2f %%  (%.2f segundos)" % (k, resultado_classificador*100.0, diff_time))
+		for iteracao_fold_cross in range(r):
+			treino = []
+			teste = []
 
-	k = 3
+			for j in range(r):
+				if(j == iteracao_fold_cross):
+					teste = particoes[j]
+				else:
+					treino.extend(particoes[j])
 
-	print("\n3-NN")
-	lista_acuracia_holdout_3_NN = []
-	for i in range(100):
-		treino,teste = estrificar_aleatorio(dados_faces)
+			resultado_classificador = classificador_knn(treino, teste, k, funcao_distancia=distancia_euclidiana)
+			lista_acuracia_euclidiana.append(resultado_classificador)
+			print("%d-Taxa de acertos (acuracia) %d-fold-cross-validation (particao %d): %.2f %%" % ((i*r+iteracao_fold_cross+1), r, (iteracao_fold_cross+1), resultado_classificador*100.0))
 
-		# DEBUG
-		time1 = time.time()
-		resultado_classificador = classificador_knn(treino, teste, k, tabela_distancias, com_peso=True)
-		time2 = time.time()
-		diff_time = float(time2 - time1)
-
-		lista_acuracia_holdout_3_NN.append(resultado_classificador)
-		print("Taxa de acertos (acuracia) %d-NN com peso: %.2f %%  (%.2f segundos)" % (k, resultado_classificador*100.0, diff_time))
 
 	print("\n\nMEDIAS DAS TAXAS DE ACERTOS")
-	print("Media acuracia holdout 1-NN: %.2f %%" % (media_lista(lista_acuracia_holdout_1_NN)*100.0))
-	print("Media acuracia holdout 3-NN: %.2f %%" % (media_lista(lista_acuracia_holdout_3_NN)*100.0))
+	print("Media acuracia com distancia de Hamming: %.2f %%" % (media_lista(lista_acuracia_hamming)*100.0))
+	print("Media acuracia com distancia Euclidiana: %.2f %%" % (media_lista(lista_acuracia_euclidiana)*100.0))
 
 
 	print("\nDESVIO PADRAO DAS TAXAS DE ACERTOS")
-	print("Desvio padrao da acuracia holdout 1-NN: %.2f %%" % (desvio_padrao(lista_acuracia_holdout_1_NN)*100.0))
-	print("Desvio padrao da acuracia holdout 3-NN: %.2f %%" % (desvio_padrao(lista_acuracia_holdout_3_NN)*100.0))
+	print("Desvio padrao da distancia de Hamming: %.2f %%" % (desvio_padrao(lista_acuracia_hamming)*100.0))
+	print("Desvio padrao da da distancia Euclidiana: %.2f %%" % (desvio_padrao(lista_acuracia_euclidiana)*100.0))
 
 	print("\n\nTESTE DE WILCOXON (95%s de nivel de confianca)" % "%")
-	z = wilcoxon(lista_acuracia_holdout_1_NN,lista_acuracia_holdout_3_NN)
+	z = wilcoxon(lista_acuracia_hamming,lista_acuracia_euclidiana)
 	
 	# DEBUG
 	#print("z =",z)
@@ -417,36 +412,4 @@ def main():
 	else:
 		print("Assume-se com 95%s de certeza os classificadores nao apresentam o mesmo desempenho" % "%")
 
-	print("\n\nTESTE INTERVALO DE CONFIANCA (95%s de nivel de confianca)" % "%")
-	vetor_diferenca = diff_lista(lista_acuracia_holdout_1_NN, lista_acuracia_holdout_3_NN)
-	intervalo,media = intervalo_confianca(vetor_diferenca)
-	if(intervalo_possui_zero(intervalo)):
-		print("Nao e possivel afirmar nada sobre as taxas de acertos dos classificadores.")
-	else:
-		print("A media de acerto dos classificadores sao diferentes.")
-		if(media < 0):
-			print("\tO 3-NN tem uma taxa de acerto significantemente maior!")
-		else:
-			print("\tO 1-NN tem uma taxa de acerto significantemente maior!")
-
-	print("\n\nTESTE DE SOBREPOSICAO DE INTERVALO DE CONFIANCA (95%s de nivel de confianca)" % "%")
-	intervalo_1nn = intervalo_confianca(lista_acuracia_holdout_1_NN)[0]
-	intervalo_3nn = intervalo_confianca(lista_acuracia_holdout_3_NN)[0]
-	
-	# DEBUG
-	#print("Intervalos:")
-	#rint("\t1-NN:", intervalo_1nn)
-	#print("\t3-NN:", intervalo_3nn)
-
-	if(sobreposicao_intervalos(intervalo_1nn, intervalo_3nn)):
-		print("Há sobreposicao de intervalos, logo nao e possivel afirmar nada sobre as taxas de acertos dos classificadores.")
-	else:
-		print("Nao ha sobreposicao de intervalos:")
-		if(intervalo_3nn[1] > intervalo_1nn[1]):
-			print("\tO 3-NN tem uma taxa de acerto maior!")
-		else:
-			print("\tO 1-NN tem uma taxa de acerto maior!")
-
-# main()
-
-tratar_dados_titanic(ler_arquivo_csv("titanic/train.csv"))
+main()
