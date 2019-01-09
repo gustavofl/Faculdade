@@ -335,7 +335,7 @@ def wilcoxon(l1, l2):
 	return z
 
 def main():
-	dados = ler_arquivo_csv("titanic/train.csv")
+	dados = ler_arquivo_csv("train.csv")
 
 	# add atributo para distancia
 	for i in range(len(dados)):
