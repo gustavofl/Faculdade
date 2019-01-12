@@ -122,6 +122,72 @@ def classificador_knn(treino, teste, k, funcao_distancia=distancia_euclidiana, c
 
 	return float(qnt_sucesso)/float(qnt_total)
 
+def classificador_naive_bayes(treino, teste):
+	arvore_prob_caracs,prob_classes = calcular_probabilidades(treino)
+	qnt_sucesso = 0
+	qnt_total = 0
+
+	for p in teste:
+		maior_prob = 0
+		maior_classe = ''
+
+		for classe in prob_classes:
+
+			probabilidade = 1
+			probabilidade *= prob_classes[classe]
+			for i,carac in enumerate(p[0]):
+				try:
+					probabilidade *= arvore_prob_caracs[classe][i][carac]
+				except:
+					probabilidade *= 0
+
+			if(probabilidade > maior_prob):
+				maior_prob = probabilidade
+				maior_classe = classe
+
+		if(maior_classe == p[1]):
+			qnt_sucesso += 1
+		qnt_total += 1
+
+	return qnt_sucesso/float(qnt_total)
+
+# preparacao para naive bayes
+def calcular_probabilidades(lista):
+	# quantidade de cada classe
+	qnt_classes = {}
+	for dado in lista:
+		if(not dado[1] in qnt_classes.keys()):
+			qnt_classes[dado[1]] = 0
+		qnt_classes[dado[1]] += 1
+
+	# quanticade de cada valor de cada caracteristica para cada classe
+	arvore_probabilidades = {}
+	for dado in lista:
+		classe = dado[1]
+		if(not classe in arvore_probabilidades.keys()):
+			arvore_probabilidades[classe] = {}
+
+		for i,carac in enumerate(dado[0]):
+			if(not i in arvore_probabilidades[classe].keys()):
+				arvore_probabilidades[classe][i] = {}
+			if(not carac in arvore_probabilidades[classe][i].keys()):
+				arvore_probabilidades[classe][i][carac] = 0
+
+			arvore_probabilidades[classe][i][carac] += 1
+
+	# calculo das probabilidades posterioris das caracteristicas
+	for classe in arvore_probabilidades:
+		for indice in arvore_probabilidades[classe]:
+			for carac in arvore_probabilidades[classe][indice]:
+				probabilidade = arvore_probabilidades[classe][indice][carac]/float(qnt_classes[classe])
+				arvore_probabilidades[classe][indice][carac] = probabilidade
+
+	# calculo das prioris das classes
+	for classe in qnt_classes:
+		qnt_classes[classe] /= float(len(lista))
+
+	return arvore_probabilidades,qnt_classes
+
 def ler_arquivo(arquivo):
 	arq = open(arquivo, "r")
 
@@ -203,9 +269,7 @@ def main():
 
 	k=1
 	r=10
-	repeticao=1
-
-	print("\n\n10-fold-cross-validation (1-NN)")
+	repeticao=10
 
 	print("\n\nNaive Bayes")
 	lista_acuracia_naive_bayes = []
@@ -223,7 +287,7 @@ def main():
 				else:
 					treino.extend(particoes[j])
 
-			resultado_classificador = classificador_knn(treino, teste, k, funcao_distancia=distancia_hamming)
+			resultado_classificador = classificador_naive_bayes(treino, teste)
 			lista_acuracia_naive_bayes.append(resultado_classificador)
 			print("%d-Taxa de acertos (acuracia) %d-fold-cross-validation (particao %d): %.2f %%" % ((i*r+iteracao_fold_cross+1), r, (iteracao_fold_cross+1), resultado_classificador*100.0))
 
