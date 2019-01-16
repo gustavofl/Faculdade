@@ -7,6 +7,7 @@ from PIL import Image
 import glob
 import numpy
 import matplotlib.pyplot as plt
+import copy
 
 # criterio da loss function
 criterion = nn.MSELoss()
@@ -126,8 +127,12 @@ def treinar_cnn(net_data, base, epoca_limite=None):
 	optimizer = optim.SGD(net.parameters(), lr=net_data['learning_rate'])
 	optimizer.load_state_dict(net_data['optimizer_state_dict'])
 
-	ultimaValidacao = net_data['loss']
-	validacaoUnderFitting = net_data['loss']+0.01
+	valueLoss = net_data['loss']
+	ultimaValidacao = valueLoss
+	lossValue_underFitting = valueLoss+0.01
+	lossValue_overFitting = valueLoss+0.01
+
+	count_overFitting = 0
 
 	listaLoss = net_data['listaLoss']
 	listaLossValid = net_data['listaLossValid']
@@ -135,8 +140,6 @@ def treinar_cnn(net_data, base, epoca_limite=None):
 	melhor_cnn = net
 
 	epoch = net_data['epoch']
-
-	valueLoss = 0
 
 	arq = open('continuar.data','r')
 	continuar = int(arq.readline())
@@ -157,29 +160,39 @@ def treinar_cnn(net_data, base, epoca_limite=None):
 			valueValidLoss = validLoss.data.tolist()
 			listaLossValid.append(valueValidLoss)
 
-			if(epoch == 1):
-				ultimaValidacao = valueValidLoss
+			if(valueValidLoss > lossValue_overFitting):
+				count_overFitting += 1
+				print('over fitting (%d)' % count_overFitting)
+				if(count_overFitting > 5):
+					break
+			else:
+				count_overFitting = 0
 
-			if(valueValidLoss > ultimaValidacao):
-				print('over fitting')
-				# break
-
-			# print('epoca=%d\t\tloss=%.7f\tvalidacao=%.7f\tDiferenca=%.7f' % (epoch, valueLoss, valueValidLoss, (ultimaValidacao-valueLoss)))
+			# print('epoca=%d\t\tloss=%.7f\tvalidacao=%.7f\tDiferenca=%.7f' % (epoch, valueLoss, valueValidLoss, (lossValue_overFitting-valueLoss)))
 	
-			ultimaValidacao = valueValidLoss
-		else:			
+			lossValue_overFitting = valueValidLoss
+		else:
+			if(valueLoss > lossValue_overFitting):
+				count_overFitting += 1
+				print('over fitting (%d)' % count_overFitting)
+				if(count_overFitting > 5):
+					break
+			else:
+				count_overFitting = 0
+
 			# print('epoca=%d\t\tloss=%.7f\t' % (epoch, valueLoss))
-			pass
+
+			lossValue_overFitting = valueLoss
 
 		loss.backward()
 		optimizer.step()	# Does the update
 
 		if(epoch % 1000 == 1000-1):
 			criterioUnderFitting = 0.0000001
-			if(validacaoUnderFitting - valueLoss < criterioUnderFitting):
+			if(lossValue_underFitting - valueLoss < criterioUnderFitting):
 				print('under fitting - epoca %d - taxa de erro = %.9f' % (epoch, valueLoss))
 				break
-			validacaoUnderFitting = valueLoss
+			lossValue_underFitting = valueLoss
 
 		if(valueLoss < net_data['loss']):
 			net_data['epoch'] = epoch
@@ -196,7 +209,7 @@ def treinar_cnn(net_data, base, epoca_limite=None):
 
 		epoch += 1
 
-	print('Treinamento da rede neural finalizada: epoca %d - taxa de erro = %.9f' % (epoch, valueLoss))
+	print('Treinamento da rede neural finalizada. Melhor rede: epoca %d - taxa de erro = %.9f' % (net_data['epoch'], net_data['loss']))
 
 	return net_data
 
@@ -224,12 +237,38 @@ def main():
 	base_A = carregar_dados(classe_1=0)
 	base_B = carregar_dados(classe_1=2)
 
-	for lr in (0.01, 1.0, 10.0):
-		net = criar_cnn(learning_rate=lr)
+	# encontrar net sem underfitting
+	# buscar_net = 1
+	# if(buscar_net):
+	# 	net_inicio = None
+	# 	net_encontrada = False
+	# 	while(not net_encontrada):
+	# 		net = criar_cnn(learning_rate=10.0)
 
+	# 		net_inicio = copy.deepcopy(net)
+
+	# 		net_treinada = treinar_cnn(net, base_B, epoca_limite=2000)
+
+	# 		print(net_treinada['loss'] , net_treinada['epoch'])
+	# 		if(net_treinada['loss'] < 0.32):
+	# 			net_encontrada = True
+
+	# 		# mostrar_curva_aprendizagem(net_treinada)
+
+	# 	torch.save(net_inicio, 'net_10_0_B.tch')
+	# else:
+	# 	net = torch.load('net_10_0_B.tch')
+
+	# 	net_treinada = treinar_cnn(net, base_B, epoca_limite=4000)
+		
+	# 	mostrar_curva_aprendizagem(net_treinada)
+
+	for lr in ('0_01', '1_0', '10_0'):
+		net = torch.load('net_'+lr+'_A.tch')
 		net_A = treinar_cnn(net, base_A)
 		testar_cnn(net_A, base_A)
 
+		net = torch.load('net_'+lr+'_B.tch')
 		net_B = treinar_cnn(net, base_B, epoca_limite=100)
 		testar_cnn(net_B, base_B)
 
