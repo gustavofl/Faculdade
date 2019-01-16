@@ -25,6 +25,17 @@ class Net(nn.Module):
 		return x
 
 
+class Base():
+	def __init__(self):
+		self.inputTreino = None
+		self.expectedTreino = None
+		self.inputValidacao = None
+		self.expectedValidacao = None
+		self.inputTeste = None
+		self.expectedTeste = None
+
+
+# def ler_arquivo(path) -> lista de [vetor_caracteristica , rotulo]
 def ler_arquivo(path):
 	dados = []
 
@@ -43,230 +54,183 @@ def ler_arquivo(path):
 
 		rotulo = caracteristicas[4].replace('\n','')
 
-		dados.append([caracteristicas, rotulo])
+		dados.append([caracteristicas[:4], rotulo])
 	arq.close()
 
 	return dados
 
-# def carregar_dados(path) -> 3 tensorList (treino,teste,validacao)
-def carregar_dados():
+# def carregar_dados(path) -> base
+def carregar_dados(classe_1 = 0):
 	# ler arquivo
 	dados = ler_arquivo("iris.data")
 
 	# treino. validacao, teste
-	bases = [None, None, None]
+	base = Base()
 
-	bases[0] = []
-	bases[2] = []
+	base.inputTreino = []
+	base.inputTeste = []
+
+	base.expectedTreino = []
+	base.expectedTeste = []
 
 	count = 0
 	for ind_classe in range(3):
-		for ind_base in (0,2):
-			for i in range(25):
-				bases[ind_base].append(dados[count])
-				count += 1
+		for i in range(25):
+			base.inputTreino.append(dados[count][0])
+			if(ind_classe == classe_1):
+				base.expectedTreino.append([1.0])
+			else:
+				base.expectedTreino.append([0.0])
+			count += 1
 
-	# converter as bases em tensores
-	for ind_base in range(len(bases)):
-		if(bases[ind_base] != None):
-			bases[ind_base] = torch.cat(bases[ind_base], 0)
+		for i in range(25):
+			base.inputTeste.append(dados[count][0])
+			if(ind_classe == classe_1):
+				base.expectedTeste.append([1.0])
+			else:
+				base.expectedTeste.append([0.0])
+			count += 1
 
-	return particoes
+	# converter lista em Tensor
+	base.inputTreino = torch.Tensor(base.inputTreino)
+	base.inputTeste = torch.Tensor(base.inputTeste)
+	base.expectedTreino = torch.Tensor(base.expectedTreino)
+	base.expectedTeste = torch.Tensor(base.expectedTeste)
+
+	return base
 
 # def gerar_rotulos_esperados(???) -> tensorList
 
 # def criar_cnn() -> net_data
-# def treinar_cnn(net_data, inputTreino, expectedTreino, inputValidacao, expectedValidacao) -> net_data
-def criar_cnn(particoes, net_dados=None):
-	if(net_dados == None):
-		net = Net()
-		print(net)
+def criar_cnn(learning_rate):
+	net = Net()
+	print(net)
 
-		optimizer = optim.SGD(net.parameters(), lr=0.01)
+	optimizer = optim.SGD(net.parameters(), lr=learning_rate)
 
-		ultimaValidacao = 1
-		validacaoUnderFitting = 0.5
+	net_data = {'epoch':1,
+				'model_state_dict': net.state_dict(),
+				'learning_rate': learning_rate,
+				'optimizer_state_dict': optimizer.state_dict(),
+				'loss': 0.5,
+				'listaLoss': [],
+				'listaLossValid': []}
 
-		listaLoss = []
-		listaLossValid = []
+	return net_data
 
-		melhor_cnn_dados = {'epoch':1,
-							'model_state_dict': None,
-							'optimizer_state_dict': None,
-							'loss': 0.5}
-		melhor_cnn = Net()
+# def treinar_cnn(net_data, base) -> net_data
+def treinar_cnn(net_data, base, epoca_limite=None):
+	net = Net()
+	net.load_state_dict(net_data['model_state_dict'])
 
-		epoch = 0
-	else:
-		net = Net()
-		net.load_state_dict(net_dados['model_state_dict'])
-		print(net)
+	optimizer = optim.SGD(net.parameters(), lr=net_data['learning_rate'])
+	optimizer.load_state_dict(net_data['optimizer_state_dict'])
 
-		optimizer = optim.SGD(net.parameters(), lr=0.01)
-		optimizer.load_state_dict(net_dados['optimizer_state_dict'])
+	ultimaValidacao = net_data['loss']
+	validacaoUnderFitting = net_data['loss']+0.01
 
-		ultimaValidacao = net_dados['loss']
-		validacaoUnderFitting = net_dados['loss']+0.01
+	listaLoss = net_data['listaLoss']
+	listaLossValid = net_data['listaLossValid']
 
-		try:
-			listaLoss = net_dados['listaLoss']
-			listaLossValid = net_dados['listaLossValid']
-		except:
-			listaLoss = []
-			listaLossValid = []
+	melhor_cnn = net
 
-		melhor_cnn_dados = net_dados
+	epoch = net_data['epoch']
 
-		melhor_cnn = net
+	valueLoss = 0
 
-		epoch = net_dados['epoch']
+	arq = open('continuar.data','r')
+	continuar = int(arq.readline())
+	arq.close()
 
-	# arq = open('continuar.data','r')
-	# continuar = int(arq.readline())
-	# arq.close()
-
-	# while(continuar):
-	for i in range(30):
+	while((epoca_limite == None and continuar) or (epoca_limite != None and epoch < epoca_limite)):
 		optimizer.zero_grad()   # zero the gradient buffers
 
-		output = net(particoes['treino']['imagens'])
-		loss = criterion(output, particoes['treino']['expected'])
+		output = net(base.inputTreino)
+		loss = criterion(output, base.expectedTreino)
 		valueLoss = loss.data.tolist()
 		listaLoss.append(valueLoss)
 
-		outputValidacao = net(particoes['validacao']['imagens'])
-		validLoss = criterion(outputValidacao, particoes['validacao']['expected'])
-		valueValidLoss = validLoss.data.tolist()
-		listaLossValid.append(valueValidLoss)
+		# verificar se havera validacao
+		if(base.inputValidacao != None and base.expectedValidacao != None):
+			outputValidacao = net(base.inputValidacao)
+			validLoss = criterion(outputValidacao, base.expectedValidacao)
+			valueValidLoss = validLoss.data.tolist()
+			listaLossValid.append(valueValidLoss)
 
-		if(epoch == 0):
+			if(epoch == 1):
+				ultimaValidacao = valueValidLoss
+
+			if(valueValidLoss > ultimaValidacao):
+				print('over fitting')
+				# break
+
+			# print('epoca=%d\t\tloss=%.7f\tvalidacao=%.7f\tDiferenca=%.7f' % (epoch, valueLoss, valueValidLoss, (ultimaValidacao-valueLoss)))
+	
 			ultimaValidacao = valueValidLoss
-
-		if(valueValidLoss > ultimaValidacao):
-			print('over fitting')
-			# break
-
-		print('epoca=%d\t\tloss=%.7f\tvalidacao=%.7f\tDiferenca=%.7f' % ((epoch+1), valueLoss, valueValidLoss, (ultimaValidacao-valueLoss)))
-
-		ultimaValidacao = valueValidLoss
+		else:			
+			# print('epoca=%d\t\tloss=%.7f\t' % (epoch, valueLoss))
+			pass
 
 		loss.backward()
 		optimizer.step()	# Does the update
 
-		if(epoch % 10 == 10-1):
-			criterioUnderFitting = 0.007
-			if(ultimaValidacao < 0.13):
-				criterioUnderFitting = 0.000001
-			if(validacaoUnderFitting - ultimaValidacao < criterioUnderFitting):
-				print('under fitting')
-				# break
-			validacaoUnderFitting = ultimaValidacao
+		if(epoch % 1000 == 1000-1):
+			criterioUnderFitting = 0.0000001
+			if(validacaoUnderFitting - valueLoss < criterioUnderFitting):
+				print('under fitting - epoca %d - taxa de erro = %.9f' % (epoch, valueLoss))
+				break
+			validacaoUnderFitting = valueLoss
 
-		if(ultimaValidacao < melhor_cnn_dados['loss']):
-			melhor_cnn_dados['epoch'] = epoch
-			melhor_cnn_dados['model_state_dict'] = net.state_dict()
-			melhor_cnn_dados['optimizer_state_dict'] = optimizer.state_dict()
-			melhor_cnn_dados['loss'] = ultimaValidacao
+		if(valueLoss < net_data['loss']):
+			net_data['epoch'] = epoch
+			net_data['model_state_dict'] = net.state_dict()
+			net_data['optimizer_state_dict'] = optimizer.state_dict()
+			net_data['loss'] = valueLoss
+			net_data['listaLoss'] = listaLoss
+			net_data['listaLossValid'] = listaLossValid
 			melhor_cnn.load_state_dict(net.state_dict())
 
-		# arq = open('continuar.data','r')
-		# continuar = int(arq.readline())
-		# arq.close()
+		arq = open('continuar.data','r')
+		continuar = int(arq.readline())
+		arq.close()
 
 		epoch += 1
 
-	salvar = input('Salvar rede neural? (s/n) ')
-	if(salvar == 's'):
-		nome_arq = input('Digite o nome do arquivo: ')
-		melhor_cnn_dados['listaLoss'] = listaLoss
-		melhor_cnn_dados['listaLossValid'] = listaLossValid
-		torch.save(melhor_cnn_dados, nome_arq+'.pth')
+	print('Treinamento da rede neural finalizada: epoca %d - taxa de erro = %.9f' % (epoch, valueLoss))
 
-	return melhor_cnn,melhor_cnn_dados,[listaLoss,listaLossValid]
+	return net_data
 
 # def mostrar_curva_aprendizagem(net_data) -> void
+def mostrar_curva_aprendizagem(net_data):
+	listaLoss = net_data['listaLoss']
+	listaLossValid = net_data['listaLossValid']
 
-# def testar_cnn(net_data, inputTeste, expectedTeste) -> erro
-def testar_cnn(net, aprendizado, net_dados, particoes):
-	epoca = net_dados['epoch']
-
-	# calcular os hash e vetor de caracteristicas de todas as imagens
-	base_imagens = torch.cat([particoes['treino']['imagens'], particoes['validacao']['imagens']], 0)
-
-	base_classes = torch.cat([particoes['treino']['expected'], particoes['validacao']['expected']], 0)
-
-	net(base_imagens)
-
-	base_classes = base_classes.data.tolist()
-
-	base_hash = net.get_hash()
-
-	base_vetor_carac = net.get_vetor_carac()
-
-	base_treino = []
-	for i in range(len(base_imagens)):
-		base_treino.append(Imagem(base_imagens[i], base_classes[i], base_hash[i], base_vetor_carac[i]))
-
-	net(particoes['teste']['imagens'])
-
-	teste_hash = net.get_hash()
-
-	teste_vetor_carac = net.get_vetor_carac()
-
-	base_teste = []
-	for i in range(len(particoes['teste']['imagens'])):
-		base_teste.append(Imagem(particoes['teste']['imagens'][i], particoes['teste']['expected'][i], teste_hash[i], teste_vetor_carac[i]))
-
-	# for img in base_teste:
-	# 	proximos = get_proximos_limiar(base_treino, img, limiar)
-	# print(len(proximos))
-
-	ind_img_busca = 0
-
-	proximos = get_proximos_limiar(base_treino, base_teste[ind_img_busca], limiar)
-
-	semelhantes = get_k_proximos(base_treino, base_teste[ind_img_busca], k)
-
-	plt.plot(aprendizado[0][:epoca])
-	plt.plot(aprendizado[1][:epoca])
+	plt.plot(listaLoss)
+	plt.plot(listaLossValid)
 	plt.show()
 
-	img = base_teste[ind_img_busca].imagem
-	img = img[0,:]
-	img = img.detach().numpy()
-	plt.subplot2grid((1, 1), (0, 0)).imshow(img, cmap="gray")
-	plt.show()
+# def testar_cnn(net_data, base) -> erro
+def testar_cnn(net_data, base):
+	net = Net()
+	net.load_state_dict(net_data['model_state_dict'])
 
-	for i in range(2):
-		for j in range(3):
-			ind_img = i*3+j
+	output = net(base.inputTeste)
+	loss = criterion(output, base.expectedTeste)
+	print(">>> TESTE:",loss.data.tolist(),"\n\n")
 
-			img = semelhantes[ind_img].imagem
-			img = img[0,:]
-			img = img.detach().numpy()
-			plt.subplot2grid((2, 3), (i, j)).imshow(img, cmap="gray")
-	plt.show()
+	mostrar_curva_aprendizagem(net_data)    
 
 def main():
-	global lista_rotulos
+	base_A = carregar_dados(classe_1=0)
+	base_B = carregar_dados(classe_1=2)
 
-	###### PARA GERAR NOVOS ROTULOS
-	lista_rotulos = get_labels('output/*.jpg', 3)
-	salvar_rotulos(lista_rotulos)
+	for lr in (0.01, 1.0, 10.0):
+		net = criar_cnn(learning_rate=lr)
 
-	###### PARA USAR ROTULOS GRAVADOS
-	# lista_rotulos = carregar_rotulos()
+		net_A = treinar_cnn(net, base_A)
+		testar_cnn(net_A, base_A)
 
-	particoes = carregar_bases()
-
-	###### CARREGAR REDE
-	# net_dados = torch.load('rede_240_1.pth')
-
-	###### INICIAR NOVA REDE
-	net_dados = None
-
-	net,net_dados,aprendizado = criar_cnn(particoes, net_dados)
-
-	testar_cnn(net, aprendizado, net_dados, particoes)
+		net_B = treinar_cnn(net, base_B, epoca_limite=100)
+		testar_cnn(net_B, base_B)
 
 main()
